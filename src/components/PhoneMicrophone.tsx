@@ -20,11 +20,11 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   
   const [qaFeed, setQaFeed] = useState<QAPair[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('Ready');
   
   const recognitionRef = useRef<any>(null);
   const isFirstMount = useRef(true);
 
-  // Sincroniza el estado local con la base de datos de Next.js
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -32,12 +32,22 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     }
     const syncState = async () => {
       try {
-        await fetch('/api/state', {
+        setUploadStatus('Syncing...');
+        // CACHE BUSTER para asegurar que la escritura pase
+        const timestamp = Date.now();
+        const res = await fetch(`/api/state?t=${timestamp}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fullTranscript, qaFeed }),
         });
+        
+        if (res.ok) {
+          setUploadStatus('Synced');
+        } else {
+          setUploadStatus('Error Saving');
+        }
       } catch (error) {
+        setUploadStatus('Network Error');
         console.error('Error sincronizando al servidor:', error);
       }
     };
@@ -144,7 +154,11 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
       
       <div className="flex items-center justify-between w-full p-4 bg-gray-800 rounded-lg">
         <button onClick={onBack} className="text-sm font-medium text-gray-400 hover:text-white shrink-0">← Back</button>
-        <h2 className="text-lg font-semibold text-center w-full">Phone Emitter</h2>
+        <div className="flex flex-col items-center">
+          <h2 className="text-lg font-semibold text-center w-full">Phone Emitter</h2>
+          <span className="text-xs text-gray-400">{uploadStatus}</span>
+        </div>
+        <div className="w-10"></div> {/* Espaciador */}
       </div>
 
       {isProcessing && <div className="text-blue-400 text-sm animate-pulse">Gemini is thinking...</div>}
