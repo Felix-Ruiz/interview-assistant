@@ -25,6 +25,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   
   const recognitionRef = useRef<any>(null);
   const isFirstMount = useRef(true);
+  const wakeLockRef = useRef<any>(null);
 
   // Sincronización con Redis
   useEffect(() => {
@@ -53,7 +54,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   const analyzeTextForQuestion = async (allText: string) => {
     if (isProcessing) return;
     
-    // Enviamos los últimos 800 caracteres para que Gemini tenga contexto de la pregunta completa
     const contextWindow = allText.slice(-800);
     if (contextWindow.trim().length < 10) return;
 
@@ -75,6 +75,28 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
       console.error('Chat API Error:', error);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Manejo de la pantalla encendida (Wake Lock API)
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      }
+    } catch (err) {
+      console.error('Error al solicitar Wake Lock:', err);
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      } catch (err) {
+        console.error('Error al liberar Wake Lock:', err);
+      }
     }
   };
 
@@ -123,7 +145,30 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     }
   }, [recognitionLang]);
 
-  // Watchdog para mantener vivo el mic en iOS
+  // Recuperación automática si el celular se bloquea o minimiza Safari
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (isListeningRef.current) {
+          requestWakeLock();
+          // El sistema pudo matar el micrófono al bloquearse, lo forzamos a reiniciar
+          if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch(e) {}
+            setTimeout(() => {
+              try { recognitionRef.current.start(); } catch(e) {}
+            }, 500);
+          }
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Watchdog para mantener vivo el mic en iOS en general
   useEffect(() => {
     const watchdog = setInterval(() => {
       if (isListeningRef.current && recognitionRef.current) {
@@ -137,10 +182,12 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     if (isListening) {
       isListeningRef.current = false;
       setIsListening(false);
+      releaseWakeLock();
       recognitionRef.current?.stop();
     } else {
       isListeningRef.current = true;
       setIsListening(true);
+      requestWakeLock();
       try { recognitionRef.current?.start(); } catch (e) {}
     }
   };

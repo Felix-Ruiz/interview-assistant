@@ -27,13 +27,13 @@ export async function POST(request: Request) {
       
       TASK:
       1. Analyze the transcript above. 
-      2. If the interviewer has just asked a question or prompted the candidate to speak, identify it.
-      3. If there is no clear question or it is just conversational filler, reply ONLY with "NO_QUESTION".
-      4. If there IS a question, provide a bilingual response.
+      2. Identify if the interviewer is asking a question OR making a direct request/imperative for the candidate to explain something (e.g., "Cuéntame para qué funciona...", "Háblame sobre...", "Tell me about...", "Explain how..."). Treat these commands exactly as questions.
+      3. If there is no clear topic requested, or it is just conversational filler (e.g., "okay", "perfect", "hello", "yes"), reply ONLY with "NO_QUESTION".
+      4. If it IS a question or an imperative request, provide a bilingual response.
 
       OUTPUT FORMAT:
-      🇬🇧 Question: [Question in English]
-      🇪🇸 Pregunta: [Pregunta en Español]
+      🇬🇧 Question: [Question or Topic in English]
+      🇪🇸 Pregunta: [Pregunta o Tema en Español]
 
       🇬🇧 Answer:
       - [Strategic point 1 in English]
