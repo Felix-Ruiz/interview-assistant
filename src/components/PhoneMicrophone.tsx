@@ -21,6 +21,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   const [qaFeed, setQaFeed] = useState<QAPair[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('Ready');
+  const [recognitionLang, setRecognitionLang] = useState('en-US'); // Nuevo estado para el idioma
   
   const recognitionRef = useRef<any>(null);
   const isFirstMount = useRef(true);
@@ -33,7 +34,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     const syncState = async () => {
       try {
         setUploadStatus('Syncing...');
-        // CACHE BUSTER para asegurar que la escritura pase
         const timestamp = Date.now();
         const res = await fetch(`/api/state?t=${timestamp}`, {
           method: 'POST',
@@ -78,14 +78,20 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     }
   };
 
+  // Re-inicializamos el micrófono si cambia el idioma
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.lang = recognitionLang; // Asignamos el idioma seleccionado
 
       recognitionRef.current.onresult = (event: any) => {
         let currentInterim = '';
@@ -117,11 +123,16 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
              try { recognitionRef.current.start(); } catch(e) {}
          }
       }
+
+      // Si ya estaba escuchando y cambió el idioma, lo reiniciamos
+      if (isListeningRef.current) {
+        try { recognitionRef.current.start(); } catch (e) {}
+      }
     }
     return () => {
       if (recognitionRef.current) recognitionRef.current.stop();
     };
-  }, []);
+  }, [recognitionLang]); // Dependencia clave para reiniciar al cambiar idioma
 
   const toggleListening = () => {
     if (isListening) {
@@ -149,6 +160,10 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     }
   };
 
+  const toggleLanguage = () => {
+    setRecognitionLang(prev => prev === 'en-US' ? 'es-ES' : 'en-US');
+  };
+
   return (
     <div className="flex flex-col items-center w-full min-h-screen p-4 bg-gray-900 text-white space-y-6">
       
@@ -158,7 +173,13 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           <h2 className="text-lg font-semibold text-center w-full">Phone Emitter</h2>
           <span className="text-xs text-gray-400">{uploadStatus}</span>
         </div>
-        <div className="w-10"></div> {/* Espaciador */}
+        {/* Nuevo botón sutil para cambiar el idioma del micrófono, aprovechando el espacio vacío */}
+        <button 
+          onClick={toggleLanguage}
+          className="w-10 text-xs font-bold bg-gray-700 py-1 rounded text-blue-400 hover:bg-gray-600 transition-colors"
+        >
+          {recognitionLang === 'en-US' ? 'EN' : 'ES'}
+        </button>
       </div>
 
       {isProcessing && <div className="text-blue-400 text-sm animate-pulse">Gemini is thinking...</div>}

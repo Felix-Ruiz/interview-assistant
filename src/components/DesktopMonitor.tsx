@@ -32,7 +32,6 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        // CACHE BUSTER: Agregamos el timestamp actual a la URL
         const timestamp = Date.now();
         const res = await fetch(`/api/state?t=${timestamp}`, { cache: 'no-store' });
         
@@ -40,7 +39,7 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
           const data = await res.json();
           setFullTranscript(data.fullTranscript || '');
           setQaFeed(data.qaFeed || []);
-          setSyncStatus('🟢 Live Synced');
+          setSyncStatus('🟢 Live Synced / Conectado');
         } else {
           setSyncStatus(`🔴 HTTP Error: ${res.status}`);
         }
@@ -48,7 +47,7 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
         setSyncStatus('🔴 Network Error');
         console.error('Error sincronizando con el teléfono:', error);
       }
-    }, 300); // Aceleración del radar a 300ms
+    }, 300);
 
     return () => clearInterval(interval);
   }, []);
@@ -58,30 +57,30 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
       
       <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Desktop Monitor</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Desktop Monitor <span className="text-lg text-gray-500">/ Monitor Principal</span></h1>
           <p className="text-sm font-medium text-gray-500 mt-1">Status: {syncStatus}</p>
         </div>
         <button onClick={onBack} className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition-colors">
-          Back to Menu
+          Back / Volver
         </button>
       </div>
 
       <div className="flex flex-row w-full h-full gap-6 overflow-hidden">
         <div className="flex flex-col w-1/3 bg-white border rounded-lg shadow-sm">
           <div className="p-4 border-b bg-gray-50 rounded-t-lg">
-            <h2 className="text-lg font-semibold text-gray-800">Live Transcript</h2>
+            <h2 className="text-lg font-semibold text-gray-800">Live Transcript / Transcripción</h2>
           </div>
           <div 
             ref={scrollContainerRef}
             className="flex-1 p-4 text-gray-700 whitespace-pre-wrap overflow-y-auto text-lg leading-relaxed"
           >
-            {fullTranscript || 'Waiting for the phone to send data...'}
+            {fullTranscript || 'Waiting for the phone to send data... / Esperando datos...'}
           </div>
         </div>
 
         <div className="flex flex-col w-2/3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
           <div className="p-4 border-b border-blue-200 bg-white rounded-t-lg">
-            <h2 className="text-xl font-bold text-blue-900">AI Suggested Answers</h2>
+            <h2 className="text-xl font-bold text-blue-900">AI Answers / Respuestas Sugeridas</h2>
           </div>
           <div className="flex-1 p-6 overflow-y-auto shadow-inner flex flex-col gap-6">
             {qaFeed.length === 0 ? (

@@ -1,6 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
-// Importamos tu documento de conocimientos
 import { candidateContext } from '@/data/interviewContext';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -15,7 +14,6 @@ export async function POST(request: Request) {
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    // Modificamos el Prompt para inyectar tu contexto personal y obligar a la IA a usarlo
     const prompt = `
       You are an expert live job interview assistant for the candidate.
       
@@ -25,19 +23,28 @@ export async function POST(request: Request) {
       """
 
       Analyze this recent segment of what the interviewer just said:
-      
       "${textChunk}"
       
-      Did the interviewer ask a clear question or prompt the candidate to speak (e.g., "tell me about...", "what is your experience with...", "how would you...")?
+      Did the interviewer ask a clear question or prompt the candidate to speak?
       
-      If NO (it's just conversational filler, a statement, or incomplete): Reply EXACTLY with the word "NO_QUESTION".
+      If NO: Reply EXACTLY with the word "NO_QUESTION".
       
-      If YES: Reply in this exact format:
-      Q: [The exact question or prompt you identified]
-      A: [2 or 3 short, strategic bullet points to answer it in English]
+      If YES: Provide the response in BOTH English and Spanish, regardless of the language the interviewer used. Reply EXACTLY in this format:
       
-      CRITICAL INSTRUCTION FOR THE ANSWER (A): 
-      You MUST base your bullet points strictly on the candidate's background provided above. Use their specific projects, skills, and pre-written answers. If the specific answer is not in the provided context, provide a highly professional, standard strategic response that fits a senior tech profile.
+      🇬🇧 Question: [The exact question you identified in English]
+      🇪🇸 Pregunta: [The exact question you identified in Spanish]
+
+      🇬🇧 Answer:
+      - [Point 1 in English based on candidate context]
+      - [Point 2 in English based on candidate context]
+      - [Point 3 in English based on candidate context]
+
+      🇪🇸 Respuesta:
+      - [Point 1 in Spanish based on candidate context]
+      - [Point 2 in Spanish based on candidate context]
+      - [Point 3 in Spanish based on candidate context]
+      
+      CRITICAL INSTRUCTION: Base your bullet points strictly on the candidate's background provided above. If the specific answer is not in the provided context, provide a highly professional, standard strategic response that fits a senior tech profile.
     `;
 
     const result = await model.generateContent(prompt);
