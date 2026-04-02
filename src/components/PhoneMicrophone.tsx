@@ -21,11 +21,12 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   const [qaFeed, setQaFeed] = useState<QAPair[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('Ready');
-  const [recognitionLang, setRecognitionLang] = useState('en-US'); // Nuevo estado para el idioma
+  const [recognitionLang, setRecognitionLang] = useState('en-US');
   
   const recognitionRef = useRef<any>(null);
   const isFirstMount = useRef(true);
 
+  // Sincronización con Redis
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -40,29 +41,28 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fullTranscript, qaFeed }),
         });
-        
-        if (res.ok) {
-          setUploadStatus('Synced');
-        } else {
-          setUploadStatus('Error Saving');
-        }
+        if (res.ok) setUploadStatus('Synced');
       } catch (error) {
-        setUploadStatus('Network Error');
-        console.error('Error sincronizando al servidor:', error);
+        setUploadStatus('Sync Error');
       }
     };
-    syncState();
+    const timer = setTimeout(syncState, 1000);
+    return () => clearTimeout(timer);
   }, [fullTranscript, qaFeed]);
 
-  const analyzeTextForQuestion = async (textChunk: string) => {
-    if (textChunk.trim().length < 10) return;
+  const analyzeTextForQuestion = async (allText: string) => {
+    if (isProcessing) return;
+    
+    // Enviamos los últimos 800 caracteres para que Gemini tenga contexto de la pregunta completa
+    const contextWindow = allText.slice(-800);
+    if (contextWindow.trim().length < 10) return;
 
     setIsProcessing(true);
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ textChunk }),
+        body: JSON.stringify({ textChunk: contextWindow }),
       });
       
       if (response.ok) {
@@ -71,32 +71,26 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           setQaFeed((prev) => [...prev, { id: Date.now(), text: data.suggestion }]);
         }
       }
-    } catch (error: any) {
-      console.error('Error:', error);
+    } catch (error) {
+      console.error('Chat API Error:', error);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Re-inicializamos el micrófono si cambia el idioma
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      if (recognitionRef.current) recognitionRef.current.stop();
 
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
-      
       recognitionRef.current.continuous = true;
       recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = recognitionLang; // Asignamos el idioma seleccionado
+      recognitionRef.current.lang = recognitionLang;
 
       recognitionRef.current.onresult = (event: any) => {
         let currentInterim = '';
         let newFinal = '';
-
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
             newFinal += event.results[i][0].transcript + ' ';
@@ -106,33 +100,38 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
         }
 
         if (newFinal) {
-          setFullTranscript((prev) => prev + newFinal);
-          analyzeTextForQuestion(newFinal);
+          setFullTranscript((prev) => {
+            const updated = prev + newFinal;
+            analyzeTextForQuestion(updated);
+            return updated;
+          });
         }
         setInterimTranscript(currentInterim);
       };
 
-      recognitionRef.current.onerror = (event: any) => {
-        if (event.error === 'no-speech') return;
-        setIsListening(false);
-        isListeningRef.current = false;
-      };
-      
       recognitionRef.current.onend = () => {
-         if (isListeningRef.current) {
-             try { recognitionRef.current.start(); } catch(e) {}
-         }
-      }
+        if (isListeningRef.current) {
+          setTimeout(() => {
+            try { recognitionRef.current.start(); } catch(e) {}
+          }, 250);
+        }
+      };
 
-      // Si ya estaba escuchando y cambió el idioma, lo reiniciamos
       if (isListeningRef.current) {
         try { recognitionRef.current.start(); } catch (e) {}
       }
     }
-    return () => {
-      if (recognitionRef.current) recognitionRef.current.stop();
-    };
-  }, [recognitionLang]); // Dependencia clave para reiniciar al cambiar idioma
+  }, [recognitionLang]);
+
+  // Watchdog para mantener vivo el mic en iOS
+  useEffect(() => {
+    const watchdog = setInterval(() => {
+      if (isListeningRef.current && recognitionRef.current) {
+        try { recognitionRef.current.start(); } catch (e) {}
+      }
+    }, 2000);
+    return () => clearInterval(watchdog);
+  }, []);
 
   const toggleListening = () => {
     if (isListening) {
@@ -150,65 +149,36 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     setFullTranscript('');
     setInterimTranscript('');
     setQaFeed([]);
-    if (isListening) {
-      recognitionRef.current?.abort();
-      setTimeout(() => {
-        if (isListeningRef.current) {
-          try { recognitionRef.current?.start(); } catch (e) {}
-        }
-      }, 300);
-    }
-  };
-
-  const toggleLanguage = () => {
-    setRecognitionLang(prev => prev === 'en-US' ? 'es-ES' : 'en-US');
   };
 
   return (
     <div className="flex flex-col items-center w-full min-h-screen p-4 bg-gray-900 text-white space-y-6">
-      
       <div className="flex items-center justify-between w-full p-4 bg-gray-800 rounded-lg">
-        <button onClick={onBack} className="text-sm font-medium text-gray-400 hover:text-white shrink-0">← Back</button>
+        <button onClick={onBack} className="text-sm font-medium text-gray-400">← Back</button>
         <div className="flex flex-col items-center">
-          <h2 className="text-lg font-semibold text-center w-full">Phone Emitter</h2>
+          <h2 className="text-lg font-semibold">Phone Emitter</h2>
           <span className="text-xs text-gray-400">{uploadStatus}</span>
         </div>
-        {/* Nuevo botón sutil para cambiar el idioma del micrófono, aprovechando el espacio vacío */}
-        <button 
-          onClick={toggleLanguage}
-          className="w-10 text-xs font-bold bg-gray-700 py-1 rounded text-blue-400 hover:bg-gray-600 transition-colors"
-        >
+        <button onClick={() => setRecognitionLang(prev => prev === 'en-US' ? 'es-ES' : 'en-US')} className="w-10 text-xs font-bold bg-gray-700 py-1 rounded text-blue-400">
           {recognitionLang === 'en-US' ? 'EN' : 'ES'}
         </button>
       </div>
 
-      {isProcessing && <div className="text-blue-400 text-sm animate-pulse">Gemini is thinking...</div>}
+      {isProcessing && <div className="text-blue-400 text-sm animate-pulse">AI is analyzing...</div>}
 
       <div className="flex flex-col w-full p-4 bg-gray-800 rounded-lg shadow-sm space-y-4 flex-1">
         <div className="w-full min-h-37.5 max-h-60 p-3 bg-gray-700 rounded-md text-gray-200 whitespace-pre-wrap overflow-y-auto">
-          <span>{fullTranscript}</span>
-          <span className="text-gray-400 italic">{interimTranscript}</span>
-          {!fullTranscript && !interimTranscript && 'Phone is ready to listen...'}
+          {fullTranscript}<span className="text-gray-400 italic">{interimTranscript}</span>
+          {!fullTranscript && !interimTranscript && 'Listening...'}
         </div>
       </div>
 
-      <div className="flex flex-col w-full gap-4 pb-8 shrink-0">
-        <button
-          onClick={handleClear}
-          className="w-full py-4 rounded-xl bg-gray-700 text-white font-bold text-lg hover:bg-gray-600 active:bg-gray-500 transition-colors"
-        >
-          Clear Data
-        </button>
-        <button
-          onClick={toggleListening}
-          className={`w-full py-6 rounded-xl text-white font-black text-2xl uppercase transition-colors shadow-lg ${
-            isListening ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
+      <div className="flex flex-col w-full gap-4 pb-8">
+        <button onClick={handleClear} className="w-full py-4 rounded-xl bg-gray-700 text-white font-bold">Clear Data</button>
+        <button onClick={toggleListening} className={`w-full py-6 rounded-xl text-white font-black text-2xl uppercase ${isListening ? 'bg-red-500' : 'bg-blue-600'}`}>
           {isListening ? 'Stop Mic' : 'Start Mic'}
         </button>
       </div>
-
     </div>
   );
 }
