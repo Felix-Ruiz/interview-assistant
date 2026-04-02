@@ -1,3 +1,7 @@
+// Bloqueamos absolutamente la caché para que la IA piense en vivo cada vez
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { candidateContext } from '@/data/interviewContext';
@@ -12,7 +16,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    // Usamos la versión estable garantizada para evitar fallos de conexión en Vercel
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
@@ -27,14 +30,15 @@ export async function POST(request: Request) {
       "${textChunk}"
       
       TASK:
-      1. Read the transcript. Focus ONLY on the VERY LAST sentence or phrase.
-      2. Did the interviewer just ask a question OR give a command to explain something (e.g., "Cuéntame sobre...", "Explícame...", "Tell me about...", "Explain how...")?
-      3. If the last sentence is NOT a question or prompt (e.g., just conversational filler like "ok", "perfect", or finishing a thought), reply EXACTLY and ONLY with "NO_QUESTION".
-      4. If it IS a question or command, provide a bilingual response.
+      1. Read the INTERVIEW TRANSCRIPT carefully.
+      2. Look for ANY question or instruction directed at the candidate (e.g., "Cuéntame...", "Explícame...", "Tell me about...", "What is...", "How do you...").
+      3. CRITICAL: IGNORE trailing filler words, pauses, or conversational agreements at the end of the text (like "ok", "yes", "exacto", "ehhh", "bueno"). Focus on the actual intent inside the text block.
+      4. If the text is ONLY filler words and contains NO requests or questions at all, output EXACTLY the word: NO_QUESTION.
+      5. If there IS a valid request or question, provide a strategic response in BOTH English and Spanish.
 
       OUTPUT FORMAT:
-      🇬🇧 Question: [Question or Topic in English]
-      🇪🇸 Pregunta: [Pregunta o Tema en Español]
+      🇬🇧 Question: [Identified Question or Topic in English]
+      🇪🇸 Pregunta: [Pregunta o Tema identificado en Español]
 
       🇬🇧 Answer:
       - [Strategic point 1 in English]
@@ -46,20 +50,20 @@ export async function POST(request: Request) {
       - [Punto estratégico 2 en Español]
       - [Punto estratégico 3 en Español]
       
-      CRITICAL: Use the CANDIDATE KNOWLEDGE BASE for answers. If not found, use your expert knowledge for a tech role.
+      FINAL RULE: Always use the CANDIDATE KNOWLEDGE BASE first. If the specific topic is not there, provide a professional, standard strategic response for a senior tech role.
     `;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text().trim();
 
-    if (responseText.includes('NO_QUESTION')) {
+    if (responseText === 'NO_QUESTION' || responseText.includes('NO_QUESTION')) {
        return NextResponse.json({ isQuestion: false });
     }
 
     return NextResponse.json({ isQuestion: true, suggestion: responseText });
     
-  } catch (error) {
-    console.error('Error en Gemini API:', error);
-    return NextResponse.json({ error: 'AI_ERROR' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Error en Gemini API:', error.message);
+    return NextResponse.json({ error: 'AI_ERROR', details: error.message }, { status: 500 });
   }
 }

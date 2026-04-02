@@ -27,9 +27,9 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   const isFirstMount = useRef(true);
   const wakeLockRef = useRef<any>(null);
   
-  // Referencia para el temporizador que agrupa las frases
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Sincronización con Redis en la nube
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -54,13 +54,14 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   }, [fullTranscript, qaFeed]);
 
   const analyzeTextForQuestion = async (allText: string) => {
-    // Se removió el "if (isProcessing) return;" que bloqueaba la lectura de frases largas
     const contextWindow = allText.slice(-800);
     if (contextWindow.trim().length < 10) return;
 
     setIsProcessing(true);
     try {
-      const response = await fetch('/api/chat', {
+      // Agregamos un timestamp dinámico para burlar cualquier caché atrapada en Safari/Vercel
+      const cacheBusterTime = Date.now();
+      const response = await fetch(`/api/chat?t=${cacheBusterTime}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ textChunk: contextWindow }),
@@ -125,11 +126,11 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           setFullTranscript((prev) => {
             const updated = prev + newFinal;
             
-            // SMART DEBOUNCE: Espera 800ms para asegurar que terminaste de hablar y procesar la frase entera
+            // SMART DEBOUNCE AUMENTADO: Espera 1200ms para evitar cortar oraciones a la mitad por tomar aire
             if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
             analyzeTimeoutRef.current = setTimeout(() => {
               analyzeTextForQuestion(updated);
-            }, 800);
+            }, 1200);
 
             return updated;
           });
@@ -204,12 +205,12 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   return (
     <div className="flex flex-col items-center w-full min-h-screen p-4 bg-gray-900 text-white space-y-6">
       <div className="flex items-center justify-between w-full p-4 bg-gray-800 rounded-lg">
-        <button onClick={onBack} className="text-sm font-medium text-gray-400">← Back</button>
+        <button onClick={onBack} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">← Back</button>
         <div className="flex flex-col items-center">
           <h2 className="text-lg font-semibold">Phone Emitter</h2>
           <span className="text-xs text-gray-400">{uploadStatus}</span>
         </div>
-        <button onClick={() => setRecognitionLang(prev => prev === 'en-US' ? 'es-ES' : 'en-US')} className="w-10 text-xs font-bold bg-gray-700 py-1 rounded text-blue-400">
+        <button onClick={() => setRecognitionLang(prev => prev === 'en-US' ? 'es-ES' : 'en-US')} className="w-10 text-xs font-bold bg-gray-700 py-1 rounded text-blue-400 hover:bg-gray-600 transition-colors">
           {recognitionLang === 'en-US' ? 'EN' : 'ES'}
         </button>
       </div>
@@ -224,8 +225,8 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
       </div>
 
       <div className="flex flex-col w-full gap-4 pb-8">
-        <button onClick={handleClear} className="w-full py-4 rounded-xl bg-gray-700 text-white font-bold">Clear Data</button>
-        <button onClick={toggleListening} className={`w-full py-6 rounded-xl text-white font-black text-2xl uppercase ${isListening ? 'bg-red-500' : 'bg-blue-600'}`}>
+        <button onClick={handleClear} className="w-full py-4 rounded-xl bg-gray-700 text-white font-bold hover:bg-gray-600 transition-colors">Clear Data</button>
+        <button onClick={toggleListening} className={`w-full py-6 rounded-xl text-white font-black text-2xl uppercase shadow-lg transition-colors ${isListening ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
           {isListening ? 'Stop Mic' : 'Start Mic'}
         </button>
       </div>
