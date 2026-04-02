@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-
-// Creamos un archivo temporal en la raíz de tu proyecto para sincronizar los dispositivos
-const dataFilePath = path.join(process.cwd(), 'sync-state.json');
+import { kv } from '@vercel/kv';
 
 export async function GET() {
   try {
-    const data = await fs.readFile(dataFilePath, 'utf-8');
-    return NextResponse.json(JSON.parse(data));
+    // Leemos los datos directamente de la base de datos en la nube
+    const data = await kv.get('interview-state');
+    return NextResponse.json(data || { fullTranscript: '', qaFeed: [] });
   } catch (e) {
-    // Si el archivo no existe aún, enviamos un estado limpio
+    console.error('Error leyendo el estado en Vercel KV:', e);
     return NextResponse.json({ fullTranscript: '', qaFeed: [] });
   }
 }
@@ -18,10 +15,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    await fs.writeFile(dataFilePath, JSON.stringify(body, null, 2));
+    // Guardamos los datos en la llave 'interview-state'
+    await kv.set('interview-state', body);
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error('Error al guardar el estado:', e);
+    console.error('Error al guardar el estado en Vercel KV:', e);
     return NextResponse.json({ error: 'Failed to save state' }, { status: 500 });
   }
 }
