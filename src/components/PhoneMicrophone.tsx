@@ -26,8 +26,10 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   const recognitionRef = useRef<any>(null);
   const isFirstMount = useRef(true);
   const wakeLockRef = useRef<any>(null);
+  
+  // Referencia para el temporizador que agrupa las frases
+  const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sincronización con Redis
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -52,8 +54,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   }, [fullTranscript, qaFeed]);
 
   const analyzeTextForQuestion = async (allText: string) => {
-    if (isProcessing) return;
-    
+    // Se removió el "if (isProcessing) return;" que bloqueaba la lectura de frases largas
     const contextWindow = allText.slice(-800);
     if (contextWindow.trim().length < 10) return;
 
@@ -78,7 +79,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     }
   };
 
-  // Manejo de la pantalla encendida (Wake Lock API)
   const requestWakeLock = async () => {
     try {
       if ('wakeLock' in navigator) {
@@ -124,7 +124,13 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
         if (newFinal) {
           setFullTranscript((prev) => {
             const updated = prev + newFinal;
-            analyzeTextForQuestion(updated);
+            
+            // SMART DEBOUNCE: Espera 800ms para asegurar que terminaste de hablar y procesar la frase entera
+            if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
+            analyzeTimeoutRef.current = setTimeout(() => {
+              analyzeTextForQuestion(updated);
+            }, 800);
+
             return updated;
           });
         }
@@ -145,13 +151,11 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     }
   }, [recognitionLang]);
 
-  // Recuperación automática si el celular se bloquea o minimiza Safari
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         if (isListeningRef.current) {
           requestWakeLock();
-          // El sistema pudo matar el micrófono al bloquearse, lo forzamos a reiniciar
           if (recognitionRef.current) {
             try { recognitionRef.current.stop(); } catch(e) {}
             setTimeout(() => {
@@ -168,7 +172,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     };
   }, []);
 
-  // Watchdog para mantener vivo el mic en iOS en general
   useEffect(() => {
     const watchdog = setInterval(() => {
       if (isListeningRef.current && recognitionRef.current) {

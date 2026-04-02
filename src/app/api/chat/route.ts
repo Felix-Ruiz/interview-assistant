@@ -12,7 +12,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    // Usamos la versión estable garantizada para evitar fallos de conexión en Vercel
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
       You are an expert live job interview assistant for the candidate.
@@ -22,14 +23,14 @@ export async function POST(request: Request) {
       ${candidateContext}
       """
 
-      RECENT INTERVIEW TRANSCRIPT (Last few seconds):
+      RECENT INTERVIEW TRANSCRIPT:
       "${textChunk}"
       
       TASK:
-      1. Analyze the transcript above. 
-      2. Identify if the interviewer is asking a question OR making a direct request/imperative for the candidate to explain something (e.g., "Cuéntame para qué funciona...", "Háblame sobre...", "Tell me about...", "Explain how..."). Treat these commands exactly as questions.
-      3. If there is no clear topic requested, or it is just conversational filler (e.g., "okay", "perfect", "hello", "yes"), reply ONLY with "NO_QUESTION".
-      4. If it IS a question or an imperative request, provide a bilingual response.
+      1. Read the transcript. Focus ONLY on the VERY LAST sentence or phrase.
+      2. Did the interviewer just ask a question OR give a command to explain something (e.g., "Cuéntame sobre...", "Explícame...", "Tell me about...", "Explain how...")?
+      3. If the last sentence is NOT a question or prompt (e.g., just conversational filler like "ok", "perfect", or finishing a thought), reply EXACTLY and ONLY with "NO_QUESTION".
+      4. If it IS a question or command, provide a bilingual response.
 
       OUTPUT FORMAT:
       🇬🇧 Question: [Question or Topic in English]
