@@ -1,3 +1,7 @@
+// Estas dos líneas apagan por completo la caché de Next.js para esta ruta
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
 

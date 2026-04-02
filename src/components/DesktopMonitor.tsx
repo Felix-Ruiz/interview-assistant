@@ -33,7 +33,8 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/state');
+        // Le decimos explícitamente al navegador que no guarde esto en caché (cache: 'no-store')
+        const res = await fetch('/api/state', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           setFullTranscript(data.fullTranscript || '');
