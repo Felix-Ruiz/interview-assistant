@@ -16,17 +16,25 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
   const [qaFeed, setQaFeed] = useState<QAPair[]>([]);
   const [syncStatus, setSyncStatus] = useState('🟡 Connecting...');
   
-  const feedEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const qaContainerRef = useRef<HTMLDivElement>(null);
+
+  // Función de "Smart Scroll" con el tipado estricto de TypeScript corregido
+  const smartScroll = (ref: React.RefObject<HTMLDivElement | null>) => {
+    if (!ref.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = ref.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+    if (isNearBottom) {
+      ref.current.scrollTop = scrollHeight;
+    }
+  };
 
   useEffect(() => {
-    feedEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    smartScroll(qaContainerRef);
   }, [qaFeed]);
 
   useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-    }
+    smartScroll(scrollContainerRef);
   }, [fullTranscript]);
 
   useEffect(() => {
@@ -79,10 +87,13 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
         </div>
 
         <div className="flex flex-col w-2/3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
-          <div className="p-4 border-b border-blue-200 bg-white rounded-t-lg">
+          <div className="p-4 border-b border-blue-200 bg-white rounded-t-lg shrink-0">
             <h2 className="text-xl font-bold text-blue-900">AI Answers / Respuestas Sugeridas</h2>
           </div>
-          <div className="flex-1 p-6 overflow-y-auto shadow-inner flex flex-col gap-6">
+          <div 
+            ref={qaContainerRef}
+            className="flex-1 p-6 overflow-y-auto shadow-inner flex flex-col gap-6"
+          >
             {qaFeed.length === 0 ? (
               <p className="text-blue-900/50 font-medium italic text-xl text-center mt-10">
                 Answers will automatically appear here...
@@ -94,7 +105,6 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
                 </div>
               ))
             )}
-            <div ref={feedEndRef} />
           </div>
         </div>
       </div>
