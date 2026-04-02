@@ -48,7 +48,7 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
         setSyncStatus('🔴 Network Error');
         console.error('Error sincronizando con el teléfono:', error);
       }
-    }, 1000);
+    }, 300); // Aceleración del radar a 300ms
 
     return () => clearInterval(interval);
   }, []);
