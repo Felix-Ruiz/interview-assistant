@@ -15,7 +15,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // CORRECCIÓN: Regresamos al modelo 2.5 que sí es compatible con tu API
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
       You are an expert live job interview assistant for the candidate.
