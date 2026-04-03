@@ -29,7 +29,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sincronización con Redis en la nube
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -59,7 +58,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
 
     setIsProcessing(true);
     try {
-      // Agregamos un timestamp dinámico para burlar cualquier caché atrapada en Safari/Vercel
       const cacheBusterTime = Date.now();
       const response = await fetch(`/api/chat?t=${cacheBusterTime}`, {
         method: 'POST',
@@ -67,14 +65,19 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
         body: JSON.stringify({ textChunk: contextWindow }),
       });
       
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
-        if (data.isQuestion && data.suggestion) {
+        if (data.suggestion) {
           setQaFeed((prev) => [...prev, { id: Date.now(), text: data.suggestion }]);
         }
+      } else {
+        // IMPRESIÓN DE ERROR: Si falla, lo mostramos en la pantalla de respuestas
+        setQaFeed((prev) => [...prev, { id: Date.now(), text: `⚠️ API ERROR: ${data.details || data.error || 'Fallo desconocido del servidor'}` }]);
       }
-    } catch (error) {
-      console.error('Chat API Error:', error);
+    } catch (error: any) {
+      // IMPRESIÓN DE RED: Si se cae internet o la ruta
+      setQaFeed((prev) => [...prev, { id: Date.now(), text: `⚠️ NETWORK ERROR: ${error.message}` }]);
     } finally {
       setIsProcessing(false);
     }
@@ -126,7 +129,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           setFullTranscript((prev) => {
             const updated = prev + newFinal;
             
-            // SMART DEBOUNCE AUMENTADO: Espera 1200ms para evitar cortar oraciones a la mitad por tomar aire
             if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
             analyzeTimeoutRef.current = setTimeout(() => {
               analyzeTextForQuestion(updated);
