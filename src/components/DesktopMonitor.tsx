@@ -16,37 +16,47 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
   const [qaFeed, setQaFeed] = useState<QAPair[]>([]);
   const [syncStatus, setSyncStatus] = useState('🟡 Connecting...');
   
-  // ESTADO NUEVO: Controla qué respuesta está abierta actualmente (guarda el id)
   const [expandedId, setExpandedId] = useState<number | null>(null);
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const qaContainerRef = useRef<HTMLDivElement>(null);
 
-  // AUTO-FOCO: Cuando llega una nueva pregunta, la abrimos automáticamente
+  // MEMORIA: Guardamos cuántas preguntas y letras teníamos antes para comparar
+  const prevQaCountRef = useRef(0);
+  const prevTranscriptLengthRef = useRef(0);
+
+  // AUTO-FOCO Y SCROLL DE RESPUESTAS (Solo actúa cuando llega una NUEVA pregunta)
   useEffect(() => {
-    if (qaFeed.length > 0) {
+    if (qaFeed.length > prevQaCountRef.current) {
+      // 1. Abrimos la nueva pregunta
       setExpandedId(qaFeed[qaFeed.length - 1].id);
+      
+      // 2. Esperamos 100ms a que la pestaña se expanda visualmente y hacemos scroll abajo
+      setTimeout(() => {
+        if (qaContainerRef.current) {
+          qaContainerRef.current.scrollTop = qaContainerRef.current.scrollHeight;
+        }
+      }, 100);
     }
+    // Actualizamos la memoria
+    prevQaCountRef.current = qaFeed.length;
   }, [qaFeed]);
 
-  const smartScroll = (ref: React.RefObject<HTMLDivElement | null>) => {
-    if (!ref.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = ref.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
-    if (isAtBottom) {
-      ref.current.scrollTop = scrollHeight;
+  // SMART SCROLL DEL TRANSCRIPT (Solo actúa cuando llegan letras NUEVAS)
+  useEffect(() => {
+    if (fullTranscript.length > prevTranscriptLengthRef.current) {
+      if (scrollContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        // Solo baja si estabas leyendo el final (umbral de 150px)
+        if (scrollHeight - scrollTop - clientHeight < 150) {
+          scrollContainerRef.current.scrollTop = scrollHeight;
+        }
+      }
     }
-  };
-
-  // El scroll inteligente ahora también reacciona cuando abres un acordeón
-  useEffect(() => {
-    smartScroll(qaContainerRef);
-  }, [qaFeed, expandedId]);
-
-  useEffect(() => {
-    smartScroll(scrollContainerRef);
+    prevTranscriptLengthRef.current = fullTranscript.length;
   }, [fullTranscript]);
 
+  // RADAR DE SINCRONIZACIÓN (Se mantiene en 300ms para velocidad)
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -92,7 +102,6 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
               qaFeed.map((qa) => {
                 const isExpanded = expandedId === qa.id;
                 
-                // LÓGICA DE SEPARACIÓN: Extraemos el título y el cuerpo del texto
                 const splitIndex = qa.text.indexOf('🇬🇧 Answer:');
                 let title = qa.text;
                 let body = '';
@@ -101,7 +110,6 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
                   title = qa.text.substring(0, splitIndex).trim();
                   body = qa.text.substring(splitIndex).trim();
                 } else {
-                  // Fallback por si la IA usa otro formato de salto de línea
                   const fallbackSplit = qa.text.split('\n\n');
                   if (fallbackSplit.length > 1) {
                     title = fallbackSplit[0];
@@ -110,9 +118,8 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
                 }
 
                 return (
-                  <div key={qa.id} className="bg-white border-l-4 border-blue-500 rounded-r-lg shadow-md flex flex-col overflow-hidden transition-all duration-300">
+                  <div key={qa.id} className="bg-white border-l-4 border-blue-500 rounded-r-lg shadow-md flex flex-col overflow-hidden transition-all duration-300 shrink-0">
                     
-                    {/* CABECERA CLICKEABLE (Siempre visible) */}
                     <div 
                       className="p-5 cursor-pointer flex justify-between items-start hover:bg-blue-50 transition-colors"
                       onClick={() => setExpandedId(isExpanded ? null : qa.id)}
@@ -125,7 +132,6 @@ export default function DesktopMonitor({ onBack }: DesktopMonitorProps) {
                       </div>
                     </div>
 
-                    {/* CUERPO DE RESPUESTA (Visible solo si está expandido) */}
                     {isExpanded && body && (
                       <div className="px-5 pb-5 text-blue-900 font-medium whitespace-pre-wrap text-2xl leading-relaxed border-t border-blue-100 pt-4 bg-white/50">
                         {body}
