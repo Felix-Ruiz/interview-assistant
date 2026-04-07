@@ -15,7 +15,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.5-flash',
+      // CONFIGURACIÓN DE VELOCIDAD EXTREMA: 
+      // Baja temperatura (0.2) = menos tiempo "pensando" en creatividad, más directo.
+      // maxOutputTokens (150) = límite estricto de texto para evitar que se quede escribiendo de más.
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 150,
+      }
+    });
 
     const prompt = `
       You are an expert live job interview assistant for the candidate.

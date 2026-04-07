@@ -29,7 +29,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ACELERADOR 1: Reducimos la demora de subida a la base de datos de 1000ms a 200ms
+  // SINCRONIZACIÓN INMEDIATA: Se eliminó el setTimeout. Ahora sube a Redis en 0ms
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -49,8 +49,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
         setUploadStatus('Sync Error');
       }
     };
-    const timer = setTimeout(syncState, 200);
-    return () => clearTimeout(timer);
+    syncState(); // Ejecución instantánea
   }, [fullTranscript, qaFeed]);
 
   const analyzeTextForQuestion = async (allText: string) => {
@@ -128,11 +127,10 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           setFullTranscript((prev) => {
             const updated = prev + newFinal;
             
-            // ACELERADOR 2: Reducimos la paciencia del micrófono de 1200ms a 800ms
             if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
             analyzeTimeoutRef.current = setTimeout(() => {
               analyzeTextForQuestion(updated);
-            }, 800);
+            }, 800); // Mantenemos 800ms para asegurar que la frase no se corte
 
             return updated;
           });
