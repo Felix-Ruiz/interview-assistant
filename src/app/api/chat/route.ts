@@ -17,12 +17,10 @@ export async function POST(request: Request) {
 
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-2.5-flash',
-      // CONFIGURACIÓN DE VELOCIDAD EXTREMA: 
-      // Baja temperatura (0.2) = menos tiempo "pensando" en creatividad, más directo.
-      // maxOutputTokens (150) = límite estricto de texto para evitar que se quede escribiendo de más.
+      // Mantenemos temperatura baja para velocidad,
+      // pero eliminamos el maxOutputTokens que ahogaba la respuesta.
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 150,
       }
     });
 
