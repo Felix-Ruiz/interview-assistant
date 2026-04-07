@@ -15,7 +15,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    // CORRECCIÓN: Regresamos al modelo 2.5 que sí es compatible con tu API
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
@@ -33,17 +32,19 @@ export async function POST(request: Request) {
       Provide a strategic response, talking points, or continuation for the transcript above.
       DO NOT evaluate whether it is a question or not. ALWAYS generate a response based on the context, even if it is just a statement or conversational filler.
       
+      CRITICAL FOR SPEED: Keep bullet points ULTRA-CONCISE (maximum 10-12 words per point). Do not write long paragraphs. Get straight to the point.
+      
       OUTPUT FORMAT MUST BE EXACTLY THIS:
-      🇬🇧 Question/Topic: [Summary of what was said in English]
-      🇪🇸 Pregunta/Tema: [Resumen de lo que se dijo en Español]
+      🇬🇧 Question/Topic: [Ultra-short summary in English]
+      🇪🇸 Pregunta/Tema: [Resumen ultra-corto en Español]
 
       🇬🇧 Answer:
-      - [Strategic point 1 in English]
-      - [Strategic point 2 in English]
+      - [Short point 1]
+      - [Short point 2]
 
       🇪🇸 Respuesta:
-      - [Punto estratégico 1 en Español]
-      - [Punto estratégico 2 en Español]
+      - [Punto corto 1]
+      - [Punto corto 2]
       
       FINAL RULE: Always use the CANDIDATE KNOWLEDGE BASE first. If not found, use your expert knowledge.
     `;
@@ -51,12 +52,10 @@ export async function POST(request: Request) {
     const result = await model.generateContent(prompt);
     const responseText = result.response.text().trim();
 
-    // Forzamos a que siempre devuelva true y la respuesta
     return NextResponse.json({ isQuestion: true, suggestion: responseText });
     
   } catch (error: any) {
     console.error('Error en Gemini API:', error.message);
-    // Devolvemos el error detallado al frontend
     return NextResponse.json({ error: 'AI_ERROR', details: error.message }, { status: 500 });
   }
 }

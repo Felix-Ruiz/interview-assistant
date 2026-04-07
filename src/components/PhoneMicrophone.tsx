@@ -29,6 +29,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ACELERADOR 1: Reducimos la demora de subida a la base de datos de 1000ms a 200ms
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -48,7 +49,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
         setUploadStatus('Sync Error');
       }
     };
-    const timer = setTimeout(syncState, 1000);
+    const timer = setTimeout(syncState, 200);
     return () => clearTimeout(timer);
   }, [fullTranscript, qaFeed]);
 
@@ -72,11 +73,9 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           setQaFeed((prev) => [...prev, { id: Date.now(), text: data.suggestion }]);
         }
       } else {
-        // IMPRESIÓN DE ERROR: Si falla, lo mostramos en la pantalla de respuestas
         setQaFeed((prev) => [...prev, { id: Date.now(), text: `⚠️ API ERROR: ${data.details || data.error || 'Fallo desconocido del servidor'}` }]);
       }
     } catch (error: any) {
-      // IMPRESIÓN DE RED: Si se cae internet o la ruta
       setQaFeed((prev) => [...prev, { id: Date.now(), text: `⚠️ NETWORK ERROR: ${error.message}` }]);
     } finally {
       setIsProcessing(false);
@@ -129,10 +128,11 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
           setFullTranscript((prev) => {
             const updated = prev + newFinal;
             
+            // ACELERADOR 2: Reducimos la paciencia del micrófono de 1200ms a 800ms
             if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
             analyzeTimeoutRef.current = setTimeout(() => {
               analyzeTextForQuestion(updated);
-            }, 1200);
+            }, 800);
 
             return updated;
           });
