@@ -13,7 +13,10 @@ interface PhoneMicrophoneProps {
 
 export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   const [isListening, setIsListening] = useState(false);
-  const isListeningRef = useRef(false);
+  
+  // Referencias para separar el estado visual del estado del hardware
+  const isListeningRef = useRef(false); // Bandera de Software (¿Hacemos caso al texto?)
+  const hasStartedHardwareRef = useRef(false); // Bandera de Hardware (¿El mic físico está encendido?)
 
   const [fullTranscript, setFullTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -29,7 +32,6 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // SINCRONIZACIÓN INMEDIATA: Se eliminó el setTimeout. Ahora sube a Redis en 0ms
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
@@ -49,7 +51,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
         setUploadStatus('Sync Error');
       }
     };
-    syncState(); // Ejecución instantánea
+    syncState();
   }, [fullTranscript, qaFeed]);
 
   const analyzeTextForQuestion = async (allText: string) => {
@@ -113,6 +115,9 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
       recognitionRef.current.lang = recognitionLang;
 
       recognitionRef.current.onresult = (event: any) => {
+        // MUTE DE SOFTWARE: Si presionaste "Stop Mic", el hardware sigue vivo pero IGNORAMOS el texto.
+        if (!isListeningRef.current) return;
+
         let currentInterim = '';
         let newFinal = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -130,7 +135,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
             if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
             analyzeTimeoutRef.current = setTimeout(() => {
               analyzeTextForQuestion(updated);
-            }, 800); // Mantenemos 800ms para asegurar que la frase no se corte
+            }, 800);
 
             return updated;
           });
@@ -139,9 +144,10 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
       };
 
       recognitionRef.current.onend = () => {
-        if (isListeningRef.current) {
+        // El hardware tiene permiso vitalicio de reiniciarse solo una vez que tocaste "Start Mic" por primera vez.
+        if (hasStartedHardwareRef.current) {
           setTimeout(() => {
-            try { recognitionRef.current.start(); } catch(e) {}
+            try { recognitionRef.current?.start(); } catch(e) {}
           }, 250);
         }
       };
@@ -155,7 +161,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        if (isListeningRef.current) {
+        if (hasStartedHardwareRef.current) {
           requestWakeLock();
           if (recognitionRef.current) {
             try { recognitionRef.current.stop(); } catch(e) {}
@@ -175,7 +181,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
 
   useEffect(() => {
     const watchdog = setInterval(() => {
-      if (isListeningRef.current && recognitionRef.current) {
+      if (hasStartedHardwareRef.current && recognitionRef.current) {
         try { recognitionRef.current.start(); } catch (e) {}
       }
     }, 2000);
@@ -184,13 +190,19 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
 
   const toggleListening = () => {
     if (isListening) {
+      // ESTADO: "Stop Mic" presionado (Mute activado)
       isListeningRef.current = false;
       setIsListening(false);
-      releaseWakeLock();
-      recognitionRef.current?.stop();
+      
+      // Ya no apagamos el hardware ni soltamos la pantalla. Solo mostramos el mensaje.
+      setInterimTranscript('⏸️ AI Muted: Puedes leer tus respuestas tranquilamente...');
     } else {
+      // ESTADO: "Start Mic" presionado (Microfono abierto)
       isListeningRef.current = true;
       setIsListening(true);
+      hasStartedHardwareRef.current = true; // Le damos permiso perpetuo al hardware
+      
+      setInterimTranscript('');
       requestWakeLock();
       try { recognitionRef.current?.start(); } catch (e) {}
     }
@@ -200,6 +212,7 @@ export default function PhoneMicrophone({ onBack }: PhoneMicrophoneProps) {
     setFullTranscript('');
     setInterimTranscript('');
     setQaFeed([]);
+    // Eliminamos el abort() del hardware aquí también para evitar crasheos al limpiar
   };
 
   return (
